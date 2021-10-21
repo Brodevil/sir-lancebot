@@ -42,11 +42,11 @@ class Bookmark(commands.Cog):
         return embed
 
     @staticmethod
-    def build_error_embed(user: discord.Member) -> discord.Embed:
+    def build_error_embed(message: str) -> discord.Embed:
         """Builds an error embed for when a bookmark requester has DMs disabled."""
         return discord.Embed(
             title=random.choice(ERROR_REPLIES),
-            description=f"{user.mention}, please enable your DMs to receive the bookmark.",
+            description=message,
             colour=Colours.soft_red
         )
 
@@ -62,7 +62,7 @@ class Bookmark(commands.Cog):
             embed = self.build_bookmark_dm(target_message, title)
             await user.send(embed=embed)
         except discord.Forbidden:
-            error_embed = self.build_error_embed(user)
+            error_embed = self.build_error_embed(f"{user.mention}, please enable your DMs to receive the bookmark.")
             await channel.send(embed=error_embed)
         else:
             log.info(f"{user} bookmarked {target_message.jump_url} with title '{title}'")
@@ -110,11 +110,7 @@ class Bookmark(commands.Cog):
         permissions = target_message.channel.permissions_for(ctx.author)
         if not permissions.read_messages:
             log.info(f"{ctx.author} tried to bookmark a message in #{target_message.channel} but has no permissions.")
-            embed = discord.Embed(
-                title=random.choice(ERROR_REPLIES),
-                color=Colours.soft_red,
-                description="You don't have permission to view this channel."
-            )
+            embed = self.build_error_embed(f"{ctx.author.mention} You don't have permission to view this channel.")
             await ctx.send(embed=embed)
             return
 
