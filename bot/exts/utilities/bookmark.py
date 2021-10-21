@@ -128,12 +128,13 @@ class Bookmark(commands.Cog):
 
         while True:
             try:
-                _, user = await self.bot.wait_for("reaction_add", timeout=TIMEOUT, check=event_check)
+                reaction, user = await self.bot.wait_for("reaction_add", timeout=TIMEOUT, check=event_check)
             except asyncio.TimeoutError:
                 log.debug("Timed out waiting for a reaction")
                 break
             log.trace(f"{user} has successfully bookmarked from a reaction, attempting to DM them.")
             await self.action_bookmark(ctx.channel, user, target_message, title)
+            await reaction.remove()
             bookmarked_users.append(user.id)
 
         await reaction_message.delete()
