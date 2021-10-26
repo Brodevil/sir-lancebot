@@ -127,7 +127,7 @@ class Bookmark(commands.Cog):
             return
         await channel.send(embed=error_embed)
 
-    @commands.command(name="bookmark", aliases=("bm", "pin"))
+    @commands.group(name="bookmark", aliases=("bm", "pin"), invoke_without_command=True)
     @commands.guild_only()
     @whitelist_override(roles=(Roles.everyone,))
     async def bookmark(
@@ -141,6 +141,8 @@ class Bookmark(commands.Cog):
         Send the author a link to the specified bookmark via DMs.
 
         Users can either give a message as an argument, or reply to a message.
+
+        Bookmarks can subsequently be deleted by using the `bookmark delete` command.
         """
         target_message = target_message or getattr(ctx.message.reference, "resolved", None)
         if not target_message:
@@ -197,6 +199,27 @@ class Bookmark(commands.Cog):
             bookmarked_users.append(user.id)
 
         await reaction_message.delete()
+
+    @commands.dm_only()
+    @bookmark.command(name="delete", aliases=("del",))
+    async def delete_bookmark(
+        self,
+        ctx: commands.Context,
+        message_to_delete: Optional[WrappedMessageConverter]
+    ) -> None:
+        """
+        Delete the referenced DM message by the user.
+
+        Users can either give a message as an argument, or reply to a message.
+        """
+        message_to_delete = message_to_delete or getattr(ctx.message.reference, "resolved", None)
+        if not message_to_delete:
+            raise commands.UserInputError(MESSAGE_NOT_FOUND_ERROR)
+
+        if message_to_delete.channel != ctx.channel:
+            raise commands.UserInputError(":x: You can only delete messages in your own DMs!")
+        await message_to_delete.delete()
+        await self.update_member_bookmarked_messages(ctx.author, message_to_delete.id, "remove")
 
 
 def setup(bot: Bot) -> None:
