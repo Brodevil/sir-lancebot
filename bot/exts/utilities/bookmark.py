@@ -75,6 +75,7 @@ class Bookmark(commands.Cog):
             log.info(f"{user} bookmarked {target_message.jump_url} with title '{title}'")
 
     @commands.command(name="bookmark", aliases=("bm", "pin"))
+    @commands.guild_only()
     @whitelist_override(roles=(Roles.everyone,))
     async def bookmark(
         self,
@@ -83,8 +84,12 @@ class Bookmark(commands.Cog):
         *,
         title: str = "Bookmark"
     ) -> None:
-        """Send the author a link to `target_message` via DMs."""
-        target_message = target_message or ctx.message.reference.resolved
+        """
+        Send the author a link to the specified bookmark via DMs.
+
+        Users can either give a message as an argument, or reply to a message.
+        """
+        target_message = target_message or getattr(ctx.message.reference, "resolved", None)
         if not target_message:
             raise commands.UserInputError(MESSAGE_NOT_FOUND_ERROR)
 
