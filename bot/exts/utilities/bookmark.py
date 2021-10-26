@@ -1,9 +1,11 @@
 import asyncio
+import json
 import logging
 import random
-from typing import Optional
+from typing import Literal, Optional
 
 import discord
+from async_rediscache import RedisCache
 from discord.ext import commands
 
 from bot.bot import Bot
@@ -25,11 +27,41 @@ MESSAGE_NOT_FOUND_ERROR = (
 )
 
 
+class AlreadyBookmarkedError(commands.UserInputError):
+    """Raised when a user tries to bookmark a message they have already bookmarked."""
+
+
 class Bookmark(commands.Cog):
     """Creates personal bookmarks by relaying a message link to the user's DMs."""
 
+    # A lookup of what messages a member has bookmarked.
+    # Used to stop members from bookmarking the same message twice.
+    # {member id: json dumps list of message ids}
+    member_bookmarked_messages = RedisCache()
+
     def __init__(self, bot: Bot):
         self.bot = bot
+
+    async def get_member_bookmarked_messages(self, member: discord.Member) -> list[int]:
+        """De-serialise and return the messages a user has bookmarked."""
+        members_bookmarked_messages = await self.member_bookmarked_messages.get(member.id, "[]")
+        return json.loads(members_bookmarked_messages)
+
+    async def update_member_bookmarked_messages(
+        self,
+        member: discord.Member,
+        message_id: int,
+        add_or_remove: Literal["add", "remove"]
+    ) -> None:
+        """De-serialise, run specified action, serialise, and store the messages a user has bookmarked."""
+        members_bookmarked_messages = await self.get_member_bookmarked_messages(member)
+        if message_id not in members_bookmarked_messages:
+            # Member deleted a DM message other than a bookmark
+            return
+
+        action = list.append if add_or_remove == "add" else list.remove
+        action(members_bookmarked_messages, message_id)
+        await self.member_bookmarked_messages.set(member.id, json.dumps(members_bookmarked_messages))
 
     @staticmethod
     def build_bookmark_dm(target_message: discord.Message, title: str) -> discord.Embed:
@@ -57,22 +89,43 @@ class Bookmark(commands.Cog):
             colour=Colours.soft_red
         )
 
+    async def maybe_send_bookmark(
+        self,
+        target_message: discord.Message,
+        title: str,
+        member: discord.Member
+    ) -> discord.Message:
+        """Send and return the message a the user with the given embed, raise error if they have already bookmarked."""
+        members_bookmarked_messages = await self.get_member_bookmarked_messages(member)
+
+        if target_message.id in members_bookmarked_messages:
+            raise AlreadyBookmarkedError
+
+        embed = self.build_bookmark_dm(target_message, title)
+        message = await member.send(embed=embed)
+
+        await self.update_member_bookmarked_messages(member, message.id, "add")
+
+        return message
+
     async def action_bookmark(
         self,
         channel: discord.TextChannel,
-        user: discord.Member,
+        member: discord.Member,
         target_message: discord.Message,
         title: str
     ) -> None:
         """Sends the bookmark DM, or sends an error embed when a user bookmarks a message."""
         try:
-            embed = self.build_bookmark_dm(target_message, title)
-            await user.send(embed=embed)
+            await self.maybe_send_bookmark(target_message, title, member)
         except discord.Forbidden:
-            error_embed = self.build_error_embed(f"{user.mention}, please enable your DMs to receive the bookmark.")
-            await channel.send(embed=error_embed)
+            error_embed = self.build_error_embed(f"{member.mention}, please enable your DMs to receive the bookmark.")
+        except AlreadyBookmarkedError:
+            error_embed = self.build_error_embed(f"{member.mention}, you have already bookmarked this message!")
         else:
-            log.info(f"{user} bookmarked {target_message.jump_url} with title '{title}'")
+            log.info(f"{member} bookmarked {target_message.jump_url} with title '{title}'")
+            return
+        await channel.send(embed=error_embed)
 
     @commands.command(name="bookmark", aliases=("bm", "pin"))
     @commands.guild_only()
