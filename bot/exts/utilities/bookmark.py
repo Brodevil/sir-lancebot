@@ -16,6 +16,13 @@ log = logging.getLogger(__name__)
 # Number of seconds to wait for other users to bookmark the same message
 TIMEOUT = 120
 BOOKMARK_EMOJI = "📌"
+MESSAGE_NOT_FOUND_ERROR = (
+    "You must either provide a valid message to bookmark, or reply to one."
+    "\n\nThe lookup strategy for a message is as follows (in order):"
+    "\n1. Lookup by '{channel ID}-{message ID}' (retrieved by shift-clicking on 'Copy ID')"
+    "\n2. Lookup by message ID (the message **must** have been sent after the bot last started)"
+    "\n3. Lookup by message URL"
+)
 
 
 class Bookmark(commands.Cog):
@@ -79,13 +86,7 @@ class Bookmark(commands.Cog):
         """Send the author a link to `target_message` via DMs."""
         target_message = target_message or ctx.message.reference.resolved
         if not target_message:
-            raise commands.UserInputError(
-                "You must either provide a valid message to bookmark, or reply to one."
-                "\n\nThe lookup strategy for a message is as follows (in order):"
-                "\n1. Lookup by '{channel ID}-{message ID}' (retrieved by shift-clicking on 'Copy ID')"
-                "\n2. Lookup by message ID (the message **must** have been sent after the bot last started)"
-                "\n3. Lookup by message URL"
-            )
+            raise commands.UserInputError(MESSAGE_NOT_FOUND_ERROR)
 
         # Prevent users from bookmarking a message in a channel they don't have access to
         permissions = target_message.channel.permissions_for(ctx.author)
