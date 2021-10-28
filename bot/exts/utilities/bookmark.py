@@ -201,7 +201,7 @@ class Bookmark(commands.Cog):
         await reaction_message.delete()
 
     @commands.dm_only()
-    @bookmark.command(name="delete", aliases=("del",))
+    @bookmark.command(name="delete", aliases=("del",), root_aliases=("unbm", "unbookmark"))
     async def delete_bookmark(
         self,
         ctx: commands.Context,
